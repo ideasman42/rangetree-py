@@ -29,13 +29,26 @@ class Node:
         # range data (inclusive)
         "min",
         "max",
-    ) + ((("_rb",) if USE_BTREE else ()))
+    ) + (((
+        "left",
+        "right",
+        "color",
+    ) if USE_BTREE else ()))
 
     def __init__(self, min, max):
         self.min = min
         self.max = max
         self.prev = None
         self.next = None
+
+        if USE_BTREE:
+            self.left = None
+            self.right = None
+
+    @property
+    def key(self):
+        return self.min
+
 
 
 class LinkedList:
@@ -147,6 +160,73 @@ class LinkedList:
             yield node
             node = node.next
 
+    def swap_pair(self, a, b):
+        if a is b:
+            return
+
+        if b.next is a:
+            # cheap trick!
+            a, b = b, a
+
+        if a.next is b:
+
+            self._validate()
+
+            # right next to each other
+            a.next = b.next
+            b.prev = a.prev
+
+            if a.next is not None:
+                a.next.prev = a
+
+            if b.prev is not None:
+                b.prev.next = b
+
+            b.next = a
+            a.prev = b
+
+        else:
+            a.prev, b.prev = b.prev, a.prev
+            a.next, b.next = b.next, a.next
+
+            if a.prev is not None:
+                a.prev.next = a
+            if b.prev is not None:
+                b.prev.next = b
+
+            if a.next is not None:
+                a.next.prev = a
+            if b.next is not None:
+                b.next.prev = b
+
+        # update list endpoints
+        if self.first is a:
+            self.first = b
+        elif self.first is b:
+            self.first = a
+
+        if self.last is a:
+            self.last = b
+        elif self.last is b:
+            self.last = a
+
+    def _validate(self):
+        A = 1
+        _ = self.last
+        if _ is not None:
+            while _.prev is not None:
+                _ = _.prev
+                A += 1
+
+        B = 1
+        _ = self.first
+        if _ is not None:
+            while _.next is not None:
+                _ = _.next
+                B += 1
+
+        assert(B == A)
+
 
 class RangeTree:
     """
@@ -159,13 +239,18 @@ class RangeTree:
 
     if USE_BTREE:
         def tree_add(self, node):
-            node._rb = self._tree.add_ex(node.min, node)
+            node.color = rbtree.RED
+            self._tree.add(node)
 
         def tree_remove(self, node):
-            self._tree.remove(node.min)
+            def swap_fn(a, b):
+                a.min, b.min = b.min, a.min
+                a.max, b.max = b.max, a.max
 
-        def tree_update(self, node):
-            node._rb.key = node.min
+                self._list.swap_pair(a, b)
+                self._list._validate()
+
+            return self._tree.remove(node.min, swap_fn)
 
     def _list_validate(self):
         ls = list(self._list.iter())
@@ -186,8 +271,22 @@ class RangeTree:
             assert(ls[0] is self._list.first)
             assert(ls[-1] is self._list.last)
 
+        A = 1
+        _ = self._list.last
+        while _.prev is not None:
+            _ = _.prev
+            A += 1
+
+        B = 1
+        _ = self._list.first
+        while _.next is not None:
+            _ = _.next
+            B += 1
+
+        assert(B == A)
 
     def _node_from_value(self, value):
+        self._list._validate()
         if USE_BTREE:
             node = self._tree.get_or_lower(value)
             if node is not None:
@@ -247,32 +346,40 @@ class RangeTree:
                  hex(id(self)),
                  [(node.min, node.max) for node in self._list.iter()]))
 
+    def node_remove(self, node):
+        if USE_BTREE:
+            node = self.tree_remove(node)
+        self._list.remove(node)
+
     def take(self, value):
+        self._list._validate()
         node = self._node_from_value(value)
         if node is None:
             if value < self._range[0] or value > self._range[1]:
                 raise Exception("Value out of range")
             else:
                 raise Exception("Already taken")
+        self._list._validate()
 
         if node.min == value:
             if node.max != value:
                 node.min += 1
-                if USE_BTREE:
-                    self.tree_update(node)
             else:
                 assert(node.min == node.max)
-                self._list.remove(node)
-                if USE_BTREE:
-                    self.tree_remove(node)
+                self.node_remove(node)
+            self._list._validate()
         elif node.max == value:
             node.max -= 1
+            self._list._validate()
         else:
+            self._list._validate()
             node_next = Node(min=value + 1, max=node.max)
             self._list.push_after(node, node_next)
             node.max = value - 1
+            self._list._validate()
             if USE_BTREE:
                 self.tree_add(node_next)
+            self._list._validate()
 
         # self._list_validate()
 
@@ -288,13 +395,9 @@ class RangeTree:
         node = self._list.first
         value = node.min
         if value == node.max:
-            self._list.remove(node)
-            if USE_BTREE:
-                self.tree_remove(node)
+            self.node_remove(node)
         else:
             node.min += 1
-            if USE_BTREE:
-                self.tree_update(node)
         return value
 
     def release(self, value):
@@ -320,17 +423,13 @@ class RangeTree:
 
         if touch_prev and touch_next:  # 1)
             node_prev.max = node_next.max
-            self._list.remove(node_next)
-            if USE_BTREE:
-                self.tree_remove(node_next)
+            self.node_remove(node_next)
         elif touch_prev:  # 2)
             assert(node_prev.max + 1 == value)
             node_prev.max = value
         elif touch_next:  # 3)
             assert(node_next.min - 1 == value)
             node_next.min = value
-            if USE_BTREE:
-                self.tree_update(node_next)
         else:  # 4)
             node_new = Node(min=value, max=value)
             if node_prev is not None:

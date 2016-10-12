@@ -3,50 +3,8 @@ __all__ = (
 )
 BLACK = True
 RED = False
-class RBNodeMap:
-    """
-    Minimal left-leaning btree,
-    nodes must only have [tree_next, tree_prev, tree_parent] members.
-
-    See: https://github.com/sebastiencs/red-black-tree/blob/master/rbtree.c
-
-    """
-
-    __slots__ = (
-        "key",
-        "value",
-        "color",
-        "left",
-        "right",
-    )
-
-    def __init__(self, key):
-        self.key = key
-        self.color = RED
-        self.left = None
-        self.right = None
-
-    def copy(self):
-        copy = self.__class__.__init__(self.key)
-        copy.value = self.value
-        copy.color = self.color
-        copy.left = self.left
-        copy.right = self.right
-
-    def swap_data(self, other):
-        a = self.value
-        self.value = other.value
-        other.value = a
-
-        # XXX
-        if hasattr(self.value, "_rb"):
-            self.value._rb = self
-            other.value._rb = other
-
 
 def rb_free(node):
-    del node.key
-    del node.value
     del node.color
     del node.left
     del node.right
@@ -91,18 +49,17 @@ def rb_rotate_right(right):
     return left
 
 
-def rb_insert_recursive(node, key, cls):
+def rb_insert_recursive(node, node_to_insert):
     if node is None:
-        node = cls(key)
-        return node, node
+        return node_to_insert
 
-    res = my_compare(key, node.key)
+    res = my_compare(node_to_insert.key, node.key)
     if res == 0:
-        node_found = node
+        pass
     elif res < 0:
-        node.left, node_found = rb_insert_recursive(node.left, key, cls)
+        node.left = rb_insert_recursive(node.left, node_to_insert)
     else:
-        node.right, node_found = rb_insert_recursive(node.right, key, cls)
+        node.right = rb_insert_recursive(node.right, node_to_insert)
 
     if is_red(node.right) and not is_red(node.left):
         node = rb_rotate_left(node)
@@ -112,13 +69,13 @@ def rb_insert_recursive(node, key, cls):
     if is_red(node.left) and is_red(node.right):
         rb_flip_color(node)
 
-    return node, node_found
+    return node
 
 
-def rb_insert_root(root_rbtree, key, cls):
-    root_rbtree, node_found = rb_insert_recursive(root_rbtree, key, cls)
+def rb_insert_root(root_rbtree, node_to_insert):
+    root_rbtree = rb_insert_recursive(root_rbtree, node_to_insert)
     root_rbtree.color = BLACK
-    return root_rbtree, node_found
+    return root_rbtree
 
 
 def rb_lookup(node, key):
@@ -201,7 +158,7 @@ def rb_pop_max_recursive(node):
     return rb_balance_recursive(node), node_free
 
 
-def rb_pop_key_recursive(node, key):
+def rb_pop_key_recursive(node, key, swap_fn):
     if node is None:
         return None, None
 
@@ -210,7 +167,7 @@ def rb_pop_key_recursive(node, key):
         if node.left is not None:
             if (not is_red(node.left)) and (not is_red(node.left.left)):
                 node = rb_move_red_to_left(node)
-        node.left, node_free = rb_pop_key_recursive(node.left, key)
+        node.left, node_free = rb_pop_key_recursive(node.left, key, swap_fn)
     else:
         if is_red(node.left):
             node = rb_rotate_right(node)
@@ -230,20 +187,14 @@ def rb_pop_key_recursive(node, key):
 
             # Swap 'node' with 'rb_pop_min_recursive(node.right)',
             # treating the right's minimum as removed.
-
-            node.swap_data(node_free)
-
-            node.key = node_free.key
-
-            # return this node holding the values that were removed
-            node_free.key = key
+            swap_fn(node, node_free)
         else:
-            node.right, node_free = rb_pop_key_recursive(node.right, key)
+            node.right, node_free = rb_pop_key_recursive(node.right, key, swap_fn)
     return rb_balance_recursive(node), node_free
 
 
-def rb_pop_key(node, key):
-    node, node_free = rb_pop_key_recursive(node, key)
+def rb_pop_key(node, key, swap_fn):
+    node, node_free = rb_pop_key_recursive(node, key, swap_fn)
     if node is not None:
         node.color = BLACK
     return node, node_free
@@ -302,38 +253,32 @@ class RBTree:
     def get_or_upper(self, key, default=None):
         for n in self._node_iter_forward():
             if n.key >= key:
-                return n.value
+                return n
         return default
 
     def get_or_lower(self, key, default=None):
         for n in self._node_iter_backward():
             if n.key <= key:
-                return n.value
+                return n
         return default
 
-    def add(self, key, value):
-        self.root, node_found = rb_insert_root(self.root, key, RBNodeMap)
-        node_found.value = value
+    def add(self, node):
+        self.root = rb_insert_root(self.root, node)
 
-    def add_ex(self, key, value):
-        # XXX, only for special case use, REMOVE!
-        self.root, node_found = rb_insert_root(self.root, key, RBNodeMap)
-        node_found.value = value
-        return node_found
-
-    def remove(self, key):
+    def remove(self, key, swap_fn):
         assert(rb_lookup(self.root, key) is not None)
-        self.root, node_free = rb_pop_key(self.root, key)
-        rb_free(node_free)
+        self.root, node_free = rb_pop_key(self.root, key, swap_fn)
+        #  rb_free(node_free)
+        return node_free
 
-    def discard(self, key):
+    def discard(self, key, swap_fn):
         if key in self:
-            self.root, node_free = rb_pop_key(self.root, key)
+            self.root, node_free = rb_pop_key(self.root, key, swap_fn)
             rb_free(node_free)
 
-    def pop_key(self, key):
+    def pop_key(self, key, swap_fn):
         assert(rb_lookup(self.root, key) is not None)
-        self.root, node_free = rb_pop_key(self.root, key)
+        self.root, node_free = rb_pop_key(self.root, key, swap_fn)
         if node_free is None:
             raise Exception("internal error, removed value which is not in the tree! tree is now invalid!")
         value = node_free.value
