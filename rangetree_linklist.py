@@ -149,23 +149,22 @@ if USE_BTREE:
         return rb_balance_recursive(node), node_free
 
 
-    def rb_pop_key_recursive(node, key, swap_fn):
+    def rb_remove_key_recursive(evil_self, node, key):
         if node is None:
-            return None, None
-
-        node_free = None
+            return None
         if my_compare(key, node.key) == -1:
             if node.left is not None:
                 if (not is_red(node.left)) and (not is_red(node.left.left)):
                     node = rb_move_red_to_left(node)
-            node.left, node_free = rb_pop_key_recursive(node.left, key, swap_fn)
+            node.left = rb_remove_key_recursive(evil_self, node.left, key)
         else:
             if is_red(node.left):
                 node = rb_rotate_right(node)
             cmp = my_compare(key, node.key)
             if cmp == 0 and (node.right is None):
-                #  rb_free(node)
-                return None, node
+                evil_self._list.remove(node)  # self access!
+                rb_free(node)
+                return None
             assert(node.right is not None)
             if (not is_red(node.right)) and (not is_red(node.right.left)):
                 node = rb_move_red_to_right(node)
@@ -178,17 +177,26 @@ if USE_BTREE:
 
                 # Swap 'node' with 'rb_pop_min_recursive(node.right)',
                 # treating the right's minimum as removed.
-                swap_fn(node, node_free)
+                if 1:
+                    node.min = node_free.min
+                    node.max = node_free.max
+
+                    evil_self._list.replace(node, node_free)
+                    #  evil_self._list._validate()
+
+                rb_free(node_free)
+
+                # can't avoid non-generic data swapping here!
+                #  rb_free(node_free)
             else:
-                node.right, node_free = rb_pop_key_recursive(node.right, key, swap_fn)
-        return rb_balance_recursive(node), node_free
+                node.right = rb_remove_key_recursive(evil_self, node.right, key)
+        return rb_balance_recursive(node)
 
 
-    def rb_pop_key(node, key, swap_fn):
-        node, node_free = rb_pop_key_recursive(node, key, swap_fn)
-        if node is not None:
-            node.color = BLACK
-        return node, node_free
+    def rb_remove_key_and_list(evil_self, key):
+        evil_self._root = rb_remove_key_recursive(evil_self, evil_self._root, key)
+        if evil_self._root is not None:
+            evil_self._root.color = BLACK
 
 
     def rb_copy_recursive(node):
@@ -210,15 +218,7 @@ if USE_BTREE:
             node.left = None
             node.right = None
             rb_free(node)
-
-
-
-
-
-
-
-
-
+# rb api end
 
 
 def iter_pairs(iterable):
@@ -375,55 +375,30 @@ class LinkedList:
             yield node
             node = node.next
 
-    def swap_pair(self, a, b):
-        if a is b:
-            return
+    def replace(self, n_src, n_dst):
+        # put 'n_src' in the position of 'n_dst', then remove 'n_dst'
 
-        if b.next is a:
-            # cheap trick!
-            a, b = b, a
+        # close n_src's links
+        if n_src.next is not None:
+            n_src.next.prev = n_src.prev
+        if n_src.prev is not None:
+            n_src.prev.next = n_src.next
 
-        if a.next is b:
+        # update adjacent links
+        if n_dst.next is not None:
+            n_dst.next.prev = n_src
+        if n_dst.prev is not None:
+            n_dst.prev.next = n_src
 
-            self._validate()
+        # set direct links
+        n_src.next = n_dst.next
+        n_src.prev = n_dst.prev
 
-            # right next to each other
-            a.next = b.next
-            b.prev = a.prev
-
-            if a.next is not None:
-                a.next.prev = a
-
-            if b.prev is not None:
-                b.prev.next = b
-
-            b.next = a
-            a.prev = b
-
-        else:
-            a.prev, b.prev = b.prev, a.prev
-            a.next, b.next = b.next, a.next
-
-            if a.prev is not None:
-                a.prev.next = a
-            if b.prev is not None:
-                b.prev.next = b
-
-            if a.next is not None:
-                a.next.prev = a
-            if b.next is not None:
-                b.next.prev = b
-
-        # update list endpoints
-        if self.first is a:
-            self.first = b
-        elif self.first is b:
-            self.first = a
-
-        if self.last is a:
-            self.last = b
-        elif self.last is b:
-            self.last = a
+        # update list
+        if self.first is n_dst:
+            self.first = n_src
+        if self.last is n_dst:
+            self.last = n_src
 
     def _validate(self):
         A = 1
@@ -454,18 +429,8 @@ class RangeTree:
 
     if USE_BTREE:
         # External tree API
-        def tree_add(self, node):
-            self.rb_add(node)
-
-        def tree_remove(self, node):
-            def swap_fn(a, b):
-                a.min, b.min = b.min, a.min
-                a.max, b.max = b.max, a.max
-
-                self._list.swap_pair(a, b)
-                self._list._validate()
-
-            return self.rb_remove(node.min, swap_fn)
+        def tree_remove_and_list(self, node):
+            self.rb_remove_and_list(node.min)
 
         def tree_get_or_upper(self, key, default=None):
             # slow, in-efficient version
@@ -561,11 +526,9 @@ class RangeTree:
             node.right = None
             self._root = rb_insert_root(self._root, node)
 
-        def rb_remove(self, key, swap_fn):
+        def rb_remove_and_list(self, key):
             assert(rb_lookup(self._root, key) is not None)
-            self._root, node_free = rb_pop_key(self._root, key, swap_fn)
-            rb_free(node_free)
-            return node_free
+            rb_remove_key_and_list(self, key)
 
         def clear(self):
             rb_free_recursive(self._root)
@@ -573,6 +536,8 @@ class RangeTree:
 
         def is_empty(self):
             self._root is None
+
+        # RB-TREE END
 
     def _list_validate(self):
         ls = list(self._list.iter())
@@ -608,7 +573,7 @@ class RangeTree:
         assert(B == A)
 
     def _node_from_value(self, value):
-        self._list._validate()
+        #  self._list._validate()
         if USE_BTREE:
             node = self.tree_get_or_lower(value)
             if node is not None:
@@ -656,11 +621,11 @@ class RangeTree:
     def __init__(self, *, min, max):
         self._list = LinkedList()
         self._range = (min, max)
-        node = Node(min=min, max=max)
-        self._list.push_front(node)
         if USE_BTREE:
             self._root = None
-            self.tree_add(node)
+
+        node = Node(min=min, max=max)
+        self.node_add_front(node)
 
     def __repr__(self):
         return ("<%s object at %s [%s]>" %
@@ -670,18 +635,35 @@ class RangeTree:
 
     def node_remove(self, node):
         if USE_BTREE:
-            node = self.tree_remove(node)
-        self._list.remove(node)
+            # handles list also
+            node = self.tree_remove_and_list(node)
+        else:
+            self._list.remove(node)
+
+    def node_add_back(self, node_new):
+        self._list.push_back(node_new)
+        if USE_BTREE:
+            self.rb_add(node_new)
+    def node_add_front(self, node_new):
+        self._list.push_front(node_new)
+        if USE_BTREE:
+            self.rb_add(node_new)
+    def node_add_before(self, node_next, node_new):
+        self._list.push_before(node_next, node_new)
+        if USE_BTREE:
+            self.rb_add(node_new)
+    def node_add_after(self, node_prev, node_new):
+        self._list.push_after(node_prev, node_new)
+        if USE_BTREE:
+            self.rb_add(node_new)
 
     def take(self, value):
-        self._list._validate()
         node = self._node_from_value(value)
         if node is None:
             if value < self._range[0] or value > self._range[1]:
                 raise Exception("Value out of range")
             else:
                 raise Exception("Already taken")
-        self._list._validate()
 
         if node.min == value:
             if node.max != value:
@@ -689,19 +671,13 @@ class RangeTree:
             else:
                 assert(node.min == node.max)
                 self.node_remove(node)
-            self._list._validate()
+                del node
         elif node.max == value:
             node.max -= 1
-            self._list._validate()
         else:
-            self._list._validate()
             node_next = Node(min=value + 1, max=node.max)
-            self._list.push_after(node, node_next)
             node.max = value - 1
-            self._list._validate()
-            if USE_BTREE:
-                self.tree_add(node_next)
-            self._list._validate()
+            self.node_add_after(node, node_next)
 
         # self._list_validate()
 
@@ -718,6 +694,7 @@ class RangeTree:
         value = node.min
         if value == node.max:
             self.node_remove(node)
+            del node
         else:
             node.min += 1
         return value
@@ -746,6 +723,7 @@ class RangeTree:
         if touch_prev and touch_next:  # 1)
             node_prev.max = node_next.max
             self.node_remove(node_next)
+            del node_next
         elif touch_prev:  # 2)
             assert(node_prev.max + 1 == value)
             node_prev.max = value
@@ -755,16 +733,13 @@ class RangeTree:
         else:  # 4)
             node_new = Node(min=value, max=value)
             if node_prev is not None:
-                self._list.push_after(node_prev, node_new)
+                self.node_add_after(node_prev, node_new)
             elif node_next is not None:
-                self._list.push_before(node_next, node_new)
+                self.node_add_before(node_next, node_new)
             else:
                 assert(self._list.first is None)
-                self._list.push_back(node_new)
-            if USE_BTREE:
-                self.tree_add(node_new)
-
-        #  self._list_validate()
+                self.node_add_back(node_new)
+        # self._list_validate()
 
     def is_empty(self):
         first = self._list.first
