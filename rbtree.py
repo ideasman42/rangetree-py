@@ -146,18 +146,6 @@ def rb_pop_min_recursive(node):
     return rb_balance_recursive(node), node_free
 
 
-def rb_pop_max_recursive(node):
-    if is_red(node.left):
-        node = rb_rotate_right(node)
-    if node.right is None:
-        #  rb_free(node)
-        return None, node
-    if (not is_red(node.right)) and (not is_red(node.right.left)):
-        node = rb_move_red_to_right(node)
-    node.right, node_free = rb_pop_max_recursive(node.right)
-    return rb_balance_recursive(node), node_free
-
-
 def rb_pop_key_recursive(node, key, swap_fn):
     if node is None:
         return None, None
@@ -200,20 +188,6 @@ def rb_pop_key(node, key, swap_fn):
     return node, node_free
 
 
-def rb_pop_min(node):
-    node, node_free = rb_pop_min_recursive(node)
-    if node is not None:
-        node.color = BLACK
-    return node, node_free
-
-
-def rb_pop_max(node):
-    node, node_free = rb_pop_max_recursive(node)
-    if node is not None:
-        node.color = BLACK
-    return node, node_free
-
-
 def rb_copy_recursive(node):
     if node is None:
         return None
@@ -251,16 +225,89 @@ class RBTree:
             return default
 
     def get_or_upper(self, key, default=None):
+        # slow, in-efficient version
+        """
         for n in self._node_iter_forward():
             if n.key >= key:
                 return n
         return default
+        """
+
+        def get_or_upper_recursive(n, n_best):
+            """
+            Check if (n.key >= key and key < n_best.key)
+            to get the node directly after 'key'
+            """
+            if n is None:
+                return None
+            # return best node and key_upper
+            cmp_lower = my_compare(n.key, key)
+            if cmp_lower == 0:
+                return n  # perfect match
+            elif cmp_lower == 1:
+                assert(n.key >= key)
+                # n is lower than our best so far
+                # check if its an improvement on 'n_best'
+                if n_best is None or my_compare(n.key, n_best.key) == -1:
+                    n_test = get_or_upper_recursive(n.left, n)
+                    if n_test is not None:
+                        return n_test
+                    else:
+                        return n  # keep as is
+                else:
+                    return None
+                assert(0)  # unreachable
+            else:  # -1
+                return get_or_upper_recursive(n.right, n_best)
+            assert(0)  # unreachable
+
+        n_best = get_or_upper_recursive(self.root, None)
+        if n_best is not None:
+            return n_best
+        else:
+            return default
 
     def get_or_lower(self, key, default=None):
+        # slow, in-efficient version
+        """
         for n in self._node_iter_backward():
             if n.key <= key:
                 return n
         return default
+        """
+        def get_or_lower_recursive(n, n_best):
+            """
+            Check if (n.key >= key and key < n_best.key)
+            to get the node directly after 'key'
+            """
+            if n is None:
+                return None
+            # return best node and key_lower
+            cmp_lower = my_compare(n.key, key)
+            if cmp_lower == 0:
+                return n  # perfect match
+            elif cmp_lower == -1:
+                assert(n.key <= key)
+                # n is greater than our best so far
+                # check if its an improvement on 'n_best'
+                if n_best is None or my_compare(n.key, n_best.key) == 1:
+                    n_test = get_or_lower_recursive(n.right, n)
+                    if n_test is not None:
+                        return n_test
+                    else:
+                        return n  # keep as is
+                else:
+                    return None
+                assert(0)  # unreachable
+            else:  # 1
+                return get_or_lower_recursive(n.left, n_best)
+            assert(0)  # unreachable
+
+        n_best = get_or_lower_recursive(self.root, None)
+        if n_best is not None:
+            return n_best
+        else:
+            return default
 
     def add(self, node):
         self.root = rb_insert_root(self.root, node)
@@ -268,35 +315,8 @@ class RBTree:
     def remove(self, key, swap_fn):
         assert(rb_lookup(self.root, key) is not None)
         self.root, node_free = rb_pop_key(self.root, key, swap_fn)
-        #  rb_free(node_free)
-        return node_free
-
-    def discard(self, key, swap_fn):
-        if key in self:
-            self.root, node_free = rb_pop_key(self.root, key, swap_fn)
-            rb_free(node_free)
-
-    def pop_key(self, key, swap_fn):
-        assert(rb_lookup(self.root, key) is not None)
-        self.root, node_free = rb_pop_key(self.root, key, swap_fn)
-        if node_free is None:
-            raise Exception("internal error, removed value which is not in the tree! tree is now invalid!")
-        value = node_free.value
         rb_free(node_free)
-        return value
-
-    def pop_min(self):
-        if self.root is None:
-            raise IndexError("pop from empty tree")
-        self.root, node_free = rb_pop_min(self.root)
-        return value
-
-    def pop_max(self):
-        if self.root is None:
-            raise IndexError("pop from empty tree")
-        self.root, node_free = rb_pop_max(self.root)
-        value = node_free.value
-        return value
+        return node_free
 
     def clear(self):
         rb_free_recursive(self.root)
@@ -312,15 +332,6 @@ class RBTree:
 
     def __contains__(self, key):
         return rb_lookup(self.root, key) is not None
-
-    def __getitem__(self, key):
-        node = rb_lookup(self.root, key)
-        if node is None:
-            raise KeyError(repr(key))
-        return node.value
-
-    def __setitem__(self, key, value):
-        self.add(key, value)
 
     # ------------------------------------------------------------------------
     # Convenience Helpers
