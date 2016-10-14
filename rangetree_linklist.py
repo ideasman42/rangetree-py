@@ -446,7 +446,7 @@ class RangeTree:
         def tree_remove_and_list(self, node):
             self.rb_remove_and_list(node.key)
 
-        def tree_get_or_upper(self, key, default=None):
+        def tree_get_or_upper(self, key):
             # slow, in-efficient version
             """
             for n in self._node_iter_forward():
@@ -454,9 +454,9 @@ class RangeTree:
                     return n
             return default
             """
-            def get_or_upper_recursive(n, key_limit):
+            def get_or_upper_recursive(n):
                 """
-                Check if (n.key >= key and key < key_limit)
+                Check if (n.key >= key)
                 to get the node directly after 'key'
                 """
                 if n is None:
@@ -468,24 +468,15 @@ class RangeTree:
                 elif cmp_upper == 1:
                     assert(n.key >= key)
                     # n is lower than our best so far
-                    # check if its an improvement on 'key_limit'
-                    if key_limit is None or my_compare(n.key, key_limit) == -1:
-                        n_test = get_or_upper_recursive(n.left, n.key)
-                        return n_test if n_test is not None else n
-                    else:
-                        return None
-                    assert(0)  # unreachable
+                    n_test = get_or_upper_recursive(n.left)
+                    return n_test if n_test is not None else n
                 else:  # -1
-                    return get_or_upper_recursive(n.right, key_limit)
+                    return get_or_upper_recursive(n.right)
                 assert(0)  # unreachable
 
-            n_best = get_or_upper_recursive(self._root, None)
-            if n_best is not None:
-                return n_best
-            else:
-                return default
+            return get_or_upper_recursive(self._root)
 
-        def tree_get_or_lower(self, key, default=None):
+        def tree_get_or_lower(self, key):
             # slow, in-efficient version
             """
             for n in self._node_iter_backward():
@@ -493,9 +484,9 @@ class RangeTree:
                     return n
             return default
             """
-            def get_or_lower_recursive(n, key_limit):
+            def get_or_lower_recursive(n):
                 """
-                Check if (n.key >= key and key < key_limit)
+                Check if (n.key >= key)
                 to get the node directly after 'key'
                 """
                 if n is None:
@@ -507,22 +498,13 @@ class RangeTree:
                 elif cmp_lower == -1:
                     assert(n.key <= key)
                     # n is greater than our best so far
-                    # check if its an improvement on 'key_limit'
-                    if key_limit is None or my_compare(n.key, key_limit) == 1:
-                        n_test = get_or_lower_recursive(n.right, n.key)
-                        return n_test if n_test is not None else n
-                    else:
-                        return None
-                    assert(0)  # unreachable
+                    n_test = get_or_lower_recursive(n.right)
+                    return n_test if n_test is not None else n
                 else:  # 1
-                    return get_or_lower_recursive(n.left, key_limit)
+                    return get_or_lower_recursive(n.left)
                 assert(0)  # unreachable
 
-            n_best = get_or_lower_recursive(self._root, None)
-            if n_best is not None:
-                return n_best
-            else:
-                return default
+            return get_or_lower_recursive(self._root)
 
         # --------------------------------------------------------------------
         # RB-TREE
