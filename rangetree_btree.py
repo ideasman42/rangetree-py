@@ -459,8 +459,6 @@ class RangeTree:
                 Check if (n.key >= key)
                 to get the node directly after 'key'
                 """
-                if n is None:
-                    return None
                 # return best node and key_upper
                 cmp_upper = my_compare(n.key, key)
                 if cmp_upper == 0:
@@ -468,13 +466,20 @@ class RangeTree:
                 elif cmp_upper == 1:
                     assert(n.key >= key)
                     # n is lower than our best so far
-                    n_test = get_or_upper_recursive(n.left)
-                    return n_test if n_test is not None else n
+                    if n.left is not None:
+                        n_test = get_or_upper_recursive(n.left)
+                        if n_test is not None:
+                            return n_test
+                    return n
                 else:  # -1
-                    return get_or_upper_recursive(n.right)
+                    if n.right is not None:
+                        return get_or_upper_recursive(n.right)
+                    return None
                 assert(0)  # unreachable
 
-            return get_or_upper_recursive(self._root)
+            if self._root is not None:
+                return get_or_upper_recursive(self._root)
+            return None
 
         def tree_get_or_lower(self, key):
             # slow, in-efficient version
@@ -489,8 +494,6 @@ class RangeTree:
                 Check if (n.key >= key)
                 to get the node directly after 'key'
                 """
-                if n is None:
-                    return None
                 # return best node and key_lower
                 cmp_lower = my_compare(n.key, key)
                 if cmp_lower == 0:
@@ -498,13 +501,20 @@ class RangeTree:
                 elif cmp_lower == -1:
                     assert(n.key <= key)
                     # n is greater than our best so far
-                    n_test = get_or_lower_recursive(n.right)
-                    return n_test if n_test is not None else n
+                    if n.right is not None:
+                        n_test = get_or_lower_recursive(n.right)
+                        if n_test is not None:
+                            return n_test
+                    return n
                 else:  # 1
-                    return get_or_lower_recursive(n.left)
+                    if n.left is not None:
+                        return get_or_lower_recursive(n.left)
+                    return None
                 assert(0)  # unreachable
 
-            return get_or_lower_recursive(self._root)
+            if self._root is not None:
+                return get_or_lower_recursive(self._root)
+            return None
 
         # --------------------------------------------------------------------
         # RB-TREE
