@@ -56,10 +56,10 @@ if USE_BTREE:
         if node is None:
             return node_to_insert
 
-        res = my_compare(node_to_insert.key, node.key)
-        if res == 0:
+        cmp = my_compare(node_to_insert.key, node.key)
+        if cmp == 0:
             pass
-        elif res < 0:
+        elif cmp == -1:
             node.left = rb_insert_recursive(node.left, node_to_insert)
         else:
             node.right = rb_insert_recursive(node.right, node_to_insert)
@@ -76,9 +76,9 @@ if USE_BTREE:
 
 
     def rb_insert_root(root_rbtree, node_to_insert):
-        root_rbtree = rb_insert_recursive(root_rbtree, node_to_insert)
-        root_rbtree.color = BLACK
-        return root_rbtree
+        root = rb_insert_recursive(root_rbtree, node_to_insert)
+        root.color = BLACK
+        return root
 
 
     def rb_lookup(node, key):
@@ -87,20 +87,12 @@ if USE_BTREE:
             cmp = my_compare(key, node.key)
             if cmp == 0:
                 return node
-            if cmp < 0:
+
+            if cmp == -1:
                 node = node.left
             else:
                 node = node.right
         return None
-
-
-    def rb_min(node):
-        # -> Node
-        if node is None:
-            return None
-        while node.left is not None:
-            node = node.left
-        return node
 
 
     def rb_balance_recursive(node):
@@ -139,7 +131,7 @@ if USE_BTREE:
 
     def rb_pop_min_recursive(node):
         if node is None:
-            return None
+            return None, None
         if node.left is None:
             #  rb_free(node)
             return None, node
@@ -149,20 +141,20 @@ if USE_BTREE:
         return rb_balance_recursive(node), node_free
 
 
-    def rb_remove_key_recursive(evil_self, node, key):
+    def rb_remove_key_recursive(evil_ls, node, key):
         if node is None:
             return None
         if my_compare(key, node.key) == -1:
             if node.left is not None:
                 if (not is_red(node.left)) and (not is_red(node.left.left)):
                     node = rb_move_red_to_left(node)
-            node.left = rb_remove_key_recursive(evil_self, node.left, key)
+            node.left = rb_remove_key_recursive(evil_ls, node.left, key)
         else:
             if is_red(node.left):
                 node = rb_rotate_right(node)
             cmp = my_compare(key, node.key)
             if cmp == 0 and (node.right is None):
-                evil_self._list.remove(node)  # self access!
+                evil_ls.remove(node)  # self access!
                 rb_free(node)
                 return None
             assert(node.right is not None)
@@ -178,23 +170,22 @@ if USE_BTREE:
                 # Swap 'node' with 'rb_pop_min_recursive(node.right)',
                 # treating the right's minimum as removed.
                 if 1:
+                    # can't avoid non-generic data assignment here!
                     node.min = node_free.min
                     node.max = node_free.max
 
-                    evil_self._list.replace(node, node_free)
-                    #  evil_self._list._validate()
+                    evil_ls.replace(node, node_free)
+                    #  evil_ls._validate()
 
                 rb_free(node_free)
 
-                # can't avoid non-generic data swapping here!
-                #  rb_free(node_free)
             else:
-                node.right = rb_remove_key_recursive(evil_self, node.right, key)
+                node.right = rb_remove_key_recursive(evil_ls, node.right, key)
         return rb_balance_recursive(node)
 
 
     def rb_remove_key_and_list(evil_self, key):
-        evil_self._root = rb_remove_key_recursive(evil_self, evil_self._root, key)
+        evil_self._root = rb_remove_key_recursive(evil_self._list, evil_self._root, key)
         if evil_self._root is not None:
             evil_self._root.color = BLACK
 
@@ -218,6 +209,29 @@ if USE_BTREE:
             node.left = None
             node.right = None
             rb_free(node)
+
+    def rb_is_balanced_recursive(node, black):
+        # Does every path from the root to a leaf have the given number of black links?
+        if node is None and black == 0:
+            return True
+        if node is None and black != 0:
+            return False
+        if not is_red(node):
+            black -= 1
+        return (rb_is_balanced_recursive(node.left, black) and
+                rb_is_balanced_recursive(node.right, black))
+
+    def rb_is_balanced(root):
+        # Do all paths from root to leaf have same number of black edges?
+        black = 0  # number of black links on path from root to min
+        node = root
+        while node is not None:
+            if not is_red(node):
+                black += 1
+            node = node.left
+        return rb_is_balanced_recursive(root, black)
+
+
 # rb api end
 
 
@@ -430,7 +444,7 @@ class RangeTree:
     if USE_BTREE:
         # External tree API
         def tree_remove_and_list(self, node):
-            self.rb_remove_and_list(node.min)
+            self.rb_remove_and_list(node.key)
 
         def tree_get_or_upper(self, key, default=None):
             # slow, in-efficient version
@@ -440,33 +454,29 @@ class RangeTree:
                     return n
             return default
             """
-
-            def get_or_upper_recursive(n, n_best):
+            def get_or_upper_recursive(n, key_limit):
                 """
-                Check if (n.key >= key and key < n_best.key)
+                Check if (n.key >= key and key < key_limit)
                 to get the node directly after 'key'
                 """
                 if n is None:
                     return None
                 # return best node and key_upper
-                cmp_lower = my_compare(n.key, key)
-                if cmp_lower == 0:
-                    return n  # perfect match
-                elif cmp_lower == 1:
+                cmp_upper = my_compare(n.key, key)
+                if cmp_upper == 0:
+                    return n  # exact match
+                elif cmp_upper == 1:
                     assert(n.key >= key)
                     # n is lower than our best so far
-                    # check if its an improvement on 'n_best'
-                    if n_best is None or my_compare(n.key, n_best.key) == -1:
-                        n_test = get_or_upper_recursive(n.left, n)
-                        if n_test is not None:
-                            return n_test
-                        else:
-                            return n  # keep as is
+                    # check if its an improvement on 'key_limit'
+                    if key_limit is None or my_compare(n.key, key_limit) == -1:
+                        n_test = get_or_upper_recursive(n.left, n.key)
+                        return n_test if n_test is not None else n
                     else:
                         return None
                     assert(0)  # unreachable
                 else:  # -1
-                    return get_or_upper_recursive(n.right, n_best)
+                    return get_or_upper_recursive(n.right, key_limit)
                 assert(0)  # unreachable
 
             n_best = get_or_upper_recursive(self._root, None)
@@ -483,9 +493,9 @@ class RangeTree:
                     return n
             return default
             """
-            def get_or_lower_recursive(n, n_best):
+            def get_or_lower_recursive(n, key_limit):
                 """
-                Check if (n.key >= key and key < n_best.key)
+                Check if (n.key >= key and key < key_limit)
                 to get the node directly after 'key'
                 """
                 if n is None:
@@ -493,22 +503,19 @@ class RangeTree:
                 # return best node and key_lower
                 cmp_lower = my_compare(n.key, key)
                 if cmp_lower == 0:
-                    return n  # perfect match
+                    return n  # exact match
                 elif cmp_lower == -1:
                     assert(n.key <= key)
                     # n is greater than our best so far
-                    # check if its an improvement on 'n_best'
-                    if n_best is None or my_compare(n.key, n_best.key) == 1:
-                        n_test = get_or_lower_recursive(n.right, n)
-                        if n_test is not None:
-                            return n_test
-                        else:
-                            return n  # keep as is
+                    # check if its an improvement on 'key_limit'
+                    if key_limit is None or my_compare(n.key, key_limit) == 1:
+                        n_test = get_or_lower_recursive(n.right, n.key)
+                        return n_test if n_test is not None else n
                     else:
                         return None
                     assert(0)  # unreachable
                 else:  # 1
-                    return get_or_lower_recursive(n.left, n_best)
+                    return get_or_lower_recursive(n.left, key_limit)
                 assert(0)  # unreachable
 
             n_best = get_or_lower_recursive(self._root, None)
@@ -520,15 +527,17 @@ class RangeTree:
         # --------------------------------------------------------------------
         # RB-TREE
 
-        def rb_add(self, node):
+        def rb_insert(self, node):
             node.color = RED
             node.left = None
             node.right = None
             self._root = rb_insert_root(self._root, node)
+            assert(rb_is_balanced(self._root))
 
         def rb_remove_and_list(self, key):
             assert(rb_lookup(self._root, key) is not None)
             rb_remove_key_and_list(self, key)
+            assert(rb_is_balanced(self._root))
 
         def clear(self):
             rb_free_recursive(self._root)
@@ -633,6 +642,23 @@ class RangeTree:
                  hex(id(self)),
                  [(node.min, node.max) for node in self._list.iter()]))
 
+    def node_add_back(self, node_new):
+        self._list.push_back(node_new)
+        if USE_BTREE:
+            self.rb_insert(node_new)
+    def node_add_front(self, node_new):
+        self._list.push_front(node_new)
+        if USE_BTREE:
+            self.rb_insert(node_new)
+    def node_add_before(self, node_next, node_new):
+        self._list.push_before(node_next, node_new)
+        if USE_BTREE:
+            self.rb_insert(node_new)
+    def node_add_after(self, node_prev, node_new):
+        self._list.push_after(node_prev, node_new)
+        if USE_BTREE:
+            self.rb_insert(node_new)
+
     def node_remove(self, node):
         if USE_BTREE:
             # handles list also
@@ -640,31 +666,7 @@ class RangeTree:
         else:
             self._list.remove(node)
 
-    def node_add_back(self, node_new):
-        self._list.push_back(node_new)
-        if USE_BTREE:
-            self.rb_add(node_new)
-    def node_add_front(self, node_new):
-        self._list.push_front(node_new)
-        if USE_BTREE:
-            self.rb_add(node_new)
-    def node_add_before(self, node_next, node_new):
-        self._list.push_before(node_next, node_new)
-        if USE_BTREE:
-            self.rb_add(node_new)
-    def node_add_after(self, node_prev, node_new):
-        self._list.push_after(node_prev, node_new)
-        if USE_BTREE:
-            self.rb_add(node_new)
-
-    def take(self, value):
-        node = self._node_from_value(value)
-        if node is None:
-            if value < self._range[0] or value > self._range[1]:
-                raise Exception("Value out of range")
-            else:
-                raise Exception("Already taken")
-
+    def _take_impl(self, value, node):
         if node.min == value:
             if node.max != value:
                 node.min += 1
@@ -681,20 +683,29 @@ class RangeTree:
 
         # self._list_validate()
 
+    def take(self, value):
+        node = self._node_from_value(value)
+        if node is None:
+            # should _never_ happen, in cases where it might, use `retake` instead.
+            if value < self._range[0] or value > self._range[1]:
+                raise Exception("Value out of range")
+            else:
+                raise Exception("Already taken")
+        self._take_impl(value, node)
+
     def retake(self, value):
-        # TODO, optimize
-        if self.has(value):
-            return False
-        else:
-            self.take(value)
+        node = self._node_from_value(value)
+        if node is not None:
+            self._take_impl(value, node)
             return True
+        else:
+            return False
 
     def take_any(self):
         node = self._list.first
         value = node.min
         if value == node.max:
             self.node_remove(node)
-            del node
         else:
             node.min += 1
         return value
