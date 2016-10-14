@@ -169,13 +169,19 @@ if USE_BTREE:
 
                 # Swap 'node' with 'rb_pop_min_recursive(node.right)',
                 # treating the right's minimum as removed.
-                if 1:
+                if 0:
                     # can't avoid non-generic data assignment here!
                     node.min = node_free.min
                     node.max = node_free.max
 
                     evil_ls.replace(node, node_free)
                     #  evil_ls._validate()
+                else:
+                    node_free.left = node.left
+                    node_free.right = node.right;
+                    node_free.color = node.color;
+                    node_free, node = node, node_free
+                    evil_ls.remove(node_free)
 
                 rb_free(node_free)
 
