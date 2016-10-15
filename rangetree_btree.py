@@ -1,5 +1,5 @@
 
-# while inotifywait -e close_write ./*.py || true; do tput reset ; pypy3 tests_linklist.py && pypy3 tests_slow.py; done
+# while inotifywait -e close_write ./*.py || true; do tput reset ; pypy3 tests_btree.py && pypy3 tests_slow.py; done
 
 USE_BTREE = True
 
@@ -206,7 +206,8 @@ if USE_BTREE:
             rb_free(node)
 
     def rb_is_balanced_recursive(node, black):
-        # Does every path from the root to a leaf have the given number of black links?
+        # Check that every path from the root to a leaf
+        # has the given number of black links.
         if node is None and black == 0:
             return True
         if node is None and black != 0:
@@ -415,7 +416,8 @@ class RangeTree:
     """
     __slots__ = (
         "_list",
-        "_range",
+        "_min",
+        "_max",
     ) + ((("_root",) if USE_BTREE else ()))
 
     if USE_BTREE:
@@ -563,7 +565,8 @@ class RangeTree:
 
     def __init__(self, *, min, max, full=False):
         self._list = LinkedList()
-        self._range = (min, max)
+        self._min = min
+        self._max = max
         if USE_BTREE:
             self._root = None
 
@@ -573,7 +576,7 @@ class RangeTree:
 
     def copy(self):
         # use 'full' so tree is empty.
-        tree_dst = RangeTree(min=self._range[0], max=self._range[1], full=True)
+        tree_dst = RangeTree(min=self._min, max=self._max, full=True)
         if USE_BTREE:
             tree_dst._root = rb_copy_recursive(
                 self._root,
@@ -586,7 +589,7 @@ class RangeTree:
         return tree_dst
 
     def clear(self, full=False):
-        self.__init__(min=self._range[0], max=self._range[1], full=full)
+        self.__init__(min=self._min, max=self._max, full=full)
 
     def __repr__(self):
         return ("<%s object at %s [%s]>" %
@@ -636,7 +639,7 @@ class RangeTree:
         node = self.find_node_from_value(value)
         if node is None:
             # should _never_ happen, in cases where it might, use `retake` instead.
-            if value < self._range[0] or value > self._range[1]:
+            if value < self._min or value > self._max:
                 raise Exception("Value out of range")
             else:
                 raise Exception("Already taken")
@@ -706,12 +709,13 @@ class RangeTree:
             return False  # full
         last = self._list.last
         return ((first is last) and
-                (self._range == (first.min, first.max)))
+                ((self._min == first.min and
+                  self._max == first.max)))
 
     def has(self, value):
-        if value < self._range[0]:
+        if value < self._min:
             return False
-        elif value > self._range[1]:
+        elif value > self._max:
             return False
 
         node = self.find_node_from_value(value)
@@ -723,16 +727,16 @@ class RangeTree:
             return
 
         if self._list.first is None:
-            yield (self._range[0], self._range[1])
+            yield (self._min, self._max)
             return
 
 
-        if self._list.first.min != self._range[0]:
-            yield (self._range[0], self._list.first.min - 1)
+        if self._list.first.min != self._min:
+            yield (self._min, self._list.first.min - 1)
 
         for node_prev, node_next in iter_pairs(self._list.iter()):
             yield (node_prev.max + 1, node_next.min - 1)
 
         # This never happens!
-        if self._list.last.max != self._range[1]:
-            yield (self._list.last.max + 1, self._range[1])
+        if self._list.last.max != self._max:
+            yield (self._list.last.max + 1, self._max)
