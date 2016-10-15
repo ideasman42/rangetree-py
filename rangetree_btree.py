@@ -13,20 +13,16 @@ if USE_BTREE:
         del node.right
         # free(node);
 
-
     def is_red(node):
         return (node is not None and node.color == RED)
 
-
     def key_cmp(key1, key2):
         return 0 if (key1 == key2) else (-1 if (key1 < key2) else 1)
-
 
     def rb_flip_color(node):
         node.color ^= True
         node.left.color ^= True
         node.right.color ^= True
-
 
     def rb_rotate_left(left):
         """ Make a right-leaning 3-node lean to the left.
@@ -40,7 +36,6 @@ if USE_BTREE:
         left.color = RED
         return right
 
-
     def rb_rotate_right(right):
         """ Make a left-leaning 3-node lean to the right.
         """
@@ -52,7 +47,6 @@ if USE_BTREE:
         left.color = right.color
         right.color = RED
         return left
-
 
     def rb_insert_recursive(node, node_to_insert):
         if node is None:
@@ -76,12 +70,10 @@ if USE_BTREE:
 
         return node
 
-
     def rb_insert_root(root_rbtree, node_to_insert):
         root = rb_insert_recursive(root_rbtree, node_to_insert)
         root.color = BLACK
         return root
-
 
     def rb_lookup(node, key):
         # get node from key
@@ -96,7 +88,6 @@ if USE_BTREE:
                 node = node.right
         return None
 
-
     def rb_balance_recursive(node):
         # -> Node
         if is_red(node.right):
@@ -106,7 +97,6 @@ if USE_BTREE:
         if is_red(node.left) and is_red(node.right):
             rb_flip_color(node)
         return node
-
 
     def rb_move_red_to_left(node):
         """ Assuming that h is red and both h.left and h.left.left
@@ -119,7 +109,6 @@ if USE_BTREE:
             rb_flip_color(node)
         return node
 
-
     def rb_move_red_to_right(node):
         """ Assuming that h is red and both h.right and h.right.left
             are black, make h.right or one of its children red.
@@ -129,7 +118,6 @@ if USE_BTREE:
             node = rb_rotate_right(node)
             rb_flip_color(node)
         return node
-
 
     def rb_pop_min_recursive(node):
         if node is None:
@@ -141,7 +129,6 @@ if USE_BTREE:
             node = rb_move_red_to_left(node)
         node.left, node_free = rb_pop_min_recursive(node.left)
         return rb_balance_recursive(node), node_free
-
 
     def rb_remove_recursive(node, node_to_remove):
         if node is None:
@@ -167,8 +154,8 @@ if USE_BTREE:
                 node.right, node_free = rb_pop_min_recursive(node.right)
 
                 node_free.left = node.left
-                node_free.right = node.right;
-                node_free.color = node.color;
+                node_free.right = node.right
+                node_free.color = node.color
                 rb_free(node)
 
                 node = node_free
@@ -176,13 +163,11 @@ if USE_BTREE:
                 node.right = rb_remove_recursive(node.right, node_to_remove)
         return rb_balance_recursive(node)
 
-
     def rb_remove(root, node_to_remove):
         root = rb_remove_recursive(root, node_to_remove)
         if root is not None:
             root.color = BLACK
         return root
-
 
     def rb_copy_recursive(node_src, fn):
         if node_src is None:
@@ -193,7 +178,6 @@ if USE_BTREE:
         fn(node_dst)
         node_dst.right = rb_copy_recursive(node_src.right, fn)
         return node_dst
-
 
     def rb_free_recursive(node):
         if node is not None:
@@ -601,14 +585,17 @@ class RangeTree:
         self._list.push_back(node_new)
         if USE_BTREE:
             self.rb_insert(node_new)
+
     def node_add_front(self, node_new):
         self._list.push_front(node_new)
         if USE_BTREE:
             self.rb_insert(node_new)
+
     def node_add_before(self, node_next, node_new):
         self._list.push_before(node_next, node_new)
         if USE_BTREE:
             self.rb_insert(node_new)
+
     def node_add_after(self, node_prev, node_new):
         self._list.push_after(node_prev, node_new)
         if USE_BTREE:
@@ -729,7 +716,6 @@ class RangeTree:
         if self._list.first is None:
             yield (self._min, self._max)
             return
-
 
         if self._list.first.min != self._min:
             yield (self._min, self._list.first.min - 1)

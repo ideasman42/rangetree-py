@@ -111,4 +111,3 @@ class RangeTree:
                 i = j
             else:
                 i += 1
-

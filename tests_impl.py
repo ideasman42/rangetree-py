@@ -27,6 +27,7 @@ class TestBasics(unittest.TestCase):
 
 
 class TestRange_Helper:
+
     def assertRangeData(self, range_iter):
         range_ls_src = list(range_iter)
         r = RangeTree.FromRanges(range_ls_src)
@@ -82,6 +83,7 @@ class TestRandom_Helper:
 
 
 class RangeTest(unittest.TestCase, TestRange_Helper):
+
     def test_nil(self):
         self.assertRangeData([
         ])
@@ -222,4 +224,3 @@ class TestRandom(unittest.TestCase, TestRandom_Helper):
 
 def main():
     unittest.main(module=__name__)
-
