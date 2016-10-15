@@ -18,7 +18,7 @@ if USE_BTREE:
         return (node is not None and node.color == RED)
 
 
-    def my_compare(key1, key2):
+    def key_cmp(key1, key2):
         return 0 if (key1 == key2) else (-1 if (key1 < key2) else 1)
 
 
@@ -56,7 +56,7 @@ if USE_BTREE:
         if node is None:
             return node_to_insert
 
-        cmp = my_compare(node_to_insert.key, node.key)
+        cmp = key_cmp(node_to_insert.key, node.key)
         if cmp == 0:
             pass
         elif cmp == -1:
@@ -84,7 +84,7 @@ if USE_BTREE:
     def rb_lookup(node, key):
         # get node from key
         while node is not None:
-            cmp = my_compare(key, node.key)
+            cmp = key_cmp(key, node.key)
             if cmp == 0:
                 return node
 
@@ -144,7 +144,7 @@ if USE_BTREE:
     def rb_remove_key_recursive(node, key):
         if node is None:
             return None
-        if my_compare(key, node.key) == -1:
+        if key_cmp(key, node.key) == -1:
             if node.left is not None:
                 if (not is_red(node.left)) and (not is_red(node.left.left)):
                     node = rb_move_red_to_left(node)
@@ -152,14 +152,14 @@ if USE_BTREE:
         else:
             if is_red(node.left):
                 node = rb_rotate_right(node)
-            cmp = my_compare(key, node.key)
+            cmp = key_cmp(key, node.key)
             if cmp == 0 and (node.right is None):
                 rb_free(node)
                 return None
             assert(node.right is not None)
             if (not is_red(node.right)) and (not is_red(node.right.left)):
                 node = rb_move_red_to_right(node)
-                cmp = my_compare(key, node.key)
+                cmp = key_cmp(key, node.key)
 
             if cmp == 0:
                 # minor improvement over original method
@@ -456,7 +456,7 @@ class RangeTree:
                 to get the node directly after 'key'
                 """
                 # return best node and key_upper
-                cmp_upper = my_compare(n.key, key)
+                cmp_upper = key_cmp(n.key, key)
                 if cmp_upper == 0:
                     return n  # exact match
                 elif cmp_upper == 1:
@@ -491,7 +491,7 @@ class RangeTree:
                 to get the node directly after 'key'
                 """
                 # return best node and key_lower
-                cmp_lower = my_compare(n.key, key)
+                cmp_lower = key_cmp(n.key, key)
                 if cmp_lower == 0:
                     return n  # exact match
                 elif cmp_lower == -1:
