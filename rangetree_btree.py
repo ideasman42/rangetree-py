@@ -141,47 +141,42 @@ if USE_BTREE:
         return rb_balance_recursive(node), node_free
 
 
-    def rb_remove_key_recursive(node, key):
+    def rb_remove_recursive(node, node_to_remove):
         if node is None:
             return None
-        if key_cmp(key, node.key) == -1:
+        if key_cmp(node_to_remove.key, node.key) == -1:
             if node.left is not None:
                 if (not is_red(node.left)) and (not is_red(node.left.left)):
                     node = rb_move_red_to_left(node)
-            node.left = rb_remove_key_recursive(node.left, key)
+            node.left = rb_remove_recursive(node.left, node_to_remove)
         else:
             if is_red(node.left):
                 node = rb_rotate_right(node)
-            cmp = key_cmp(key, node.key)
-            if cmp == 0 and (node.right is None):
+            if (node is node_to_remove) and (node.right is None):
                 rb_free(node)
                 return None
             assert(node.right is not None)
             if (not is_red(node.right)) and (not is_red(node.right.left)):
                 node = rb_move_red_to_right(node)
-                cmp = key_cmp(key, node.key)
 
-            if cmp == 0:
+            if node is node_to_remove:
                 # minor improvement over original method
                 # no need to double lookup min
                 node.right, node_free = rb_pop_min_recursive(node.right)
 
-                # Swap 'node' with 'rb_pop_min_recursive(node.right)',
-                # treating the right's minimum as removed.
                 node_free.left = node.left
                 node_free.right = node.right;
                 node_free.color = node.color;
-                node_free, node = node, node_free
+                rb_free(node)
 
-                rb_free(node_free)
-
+                node = node_free
             else:
-                node.right = rb_remove_key_recursive(node.right, key)
+                node.right = rb_remove_recursive(node.right, node_to_remove)
         return rb_balance_recursive(node)
 
 
-    def rb_remove_key(root, key):
-        root = rb_remove_key_recursive(root, key)
+    def rb_remove(root, node_to_remove):
+        root = rb_remove_recursive(root, node_to_remove)
         if root is not None:
             root.color = BLACK
         return root
@@ -440,7 +435,7 @@ class RangeTree:
     if USE_BTREE:
         # External tree API
         def tree_remove(self, node):
-            self.rb_remove(node.key)
+            self.rb_remove(node)
 
         def tree_get_or_upper(self, key):
             # slow, in-efficient version
@@ -522,9 +517,8 @@ class RangeTree:
             self._root = rb_insert_root(self._root, node)
             assert(rb_is_balanced(self._root))
 
-        def rb_remove(self, key):
-            assert(rb_lookup(self._root, key) is not None)
-            self._root = rb_remove_key(self._root, key)
+        def rb_remove(self, node):
+            self._root = rb_remove(self._root, node)
             assert(rb_is_balanced(self._root))
 
         def clear(self):
