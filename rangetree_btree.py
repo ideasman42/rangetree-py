@@ -27,6 +27,7 @@ if USE_BTREE:
         node.left.color ^= True
         node.right.color ^= True
 
+
     def rb_rotate_left(left):
         """ Make a right-leaning 3-node lean to the left.
         """
@@ -38,6 +39,7 @@ if USE_BTREE:
         right.color = left.color
         left.color = RED
         return right
+
 
     def rb_rotate_right(right):
         """ Make a left-leaning 3-node lean to the right.
@@ -530,39 +532,6 @@ class RangeTree:
 
         # RB-TREE END
 
-    def _list_validate(self):
-        ls = list(self._list.iter())
-        # no duplicates
-        assert(len(ls) == len({id(node) for node in ls}))
-        for a, b in iter_pairs(ls):
-            assert(a.next is b)
-            assert(a is b.prev)
-        assert(ls[0].prev is None)
-        assert(ls[-1].next is None)
-        for a, b in iter_pairs(ls):
-            if not a.max < b.min:
-                print(a.max, b.min)
-            assert(a.max < b.min)
-            assert(a.min <= a.max)
-            assert(b.min <= b.max)
-        if ls:
-            assert(ls[0] is self._list.first)
-            assert(ls[-1] is self._list.last)
-
-        A = 1
-        _ = self._list.last
-        while _.prev is not None:
-            _ = _.prev
-            A += 1
-
-        B = 1
-        _ = self._list.first
-        while _.next is not None:
-            _ = _.next
-            B += 1
-
-        assert(B == A)
-
     def _node_from_value(self, value):
         #  self._list._validate()
         if USE_BTREE:
@@ -662,8 +631,6 @@ class RangeTree:
             node.max = value - 1
             self.node_add_after(node, node_next)
 
-        # self._list_validate()
-
     def take(self, value):
         node = self._node_from_value(value)
         if node is None:
@@ -731,7 +698,6 @@ class RangeTree:
             else:
                 assert(self._list.first is None)
                 self.node_add_back(node_new)
-        # self._list_validate()
 
     def is_empty(self):
         first = self._list.first
@@ -769,4 +735,3 @@ class RangeTree:
         # This never happens!
         if self._list.last.max != self._range[1]:
             yield (self._list.last.max + 1, self._range[1])
-
