@@ -532,7 +532,7 @@ class RangeTree:
 
         # RB-TREE END
 
-    def _node_from_value(self, value):
+    def find_node_from_value(self, value):
         #  self._list._validate()
         if USE_BTREE:
             node = self.tree_get_or_lower(value)
@@ -546,7 +546,7 @@ class RangeTree:
                     return node
             return None
 
-    def _node_pair_around_value(self, value):
+    def find_node_pair_around_value(self, value):
         if value < self._list.first.min:
             return (None, self._list.first)
         elif value > self._list.last.max:
@@ -632,7 +632,7 @@ class RangeTree:
             self.node_add_after(node, node_next)
 
     def take(self, value):
-        node = self._node_from_value(value)
+        node = self.find_node_from_value(value)
         if node is None:
             # should _never_ happen, in cases where it might, use `retake` instead.
             if value < self._range[0] or value > self._range[1]:
@@ -642,7 +642,7 @@ class RangeTree:
         self._take_impl(value, node)
 
     def retake(self, value):
-        node = self._node_from_value(value)
+        node = self.find_node_from_value(value)
         if node is not None:
             self._take_impl(value, node)
             return True
@@ -661,7 +661,7 @@ class RangeTree:
     def release(self, value):
 
         if self._list.first is not None:
-            node_prev, node_next = self._node_pair_around_value(value)
+            node_prev, node_next = self.find_node_pair_around_value(value)
             if node_prev is None and node_next is None:
                 raise Exception("Value not taken")
 
@@ -713,7 +713,7 @@ class RangeTree:
         elif value > self._range[1]:
             return False
 
-        node = self._node_from_value(value)
+        node = self.find_node_from_value(value)
         return node is None
 
     def range_iter(self):
