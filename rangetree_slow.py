@@ -27,6 +27,18 @@ class RangeTree:
         self._min = 0
         self._max = 0  # not inclusive
 
+    def copy(self):
+        tree_dst = RangeTree(min=self._min, max=self._max)
+        tree_dst._data = self._data.copy()
+        tree_dst._min = self._min
+        tree_dst._max = self._max
+        return tree_dst
+
+    def clear(self):
+        self._data.clear()
+        self._min = 0
+        self._max = 0
+
     def take(self, value):
         # not essential but OK
         if not self._data and self._min == self._max:

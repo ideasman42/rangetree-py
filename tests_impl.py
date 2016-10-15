@@ -8,6 +8,24 @@ from rangetree import RangeTree
 # while inotifywait -e close_write ./*.py || true; do tput reset ; python tests_slow.py; done
 
 
+class TestBasics(unittest.TestCase):
+
+    def test_copy_empty(self):
+        r_src = RangeTree(min=0, max=10)
+        r_dst = r_src.copy()
+        self.assertEqual(list(r_src.range_iter()), list(r_dst.range_iter()))
+
+    def test_copy_10(self):
+        r_src = RangeTree(min=0, max=10)
+        for i in range(0, 10, 2):
+            r_src.take(i)
+        r_dst = r_src.copy()
+        data = list(r_src.range_iter())
+        self.assertEqual(data, list(r_dst.range_iter()))
+        r_dst.clear()
+        self.assertEqual([], list(r_dst.range_iter()))
+
+
 class TestRange_Helper:
     def assertRangeData(self, range_iter):
         range_ls_src = list(range_iter)

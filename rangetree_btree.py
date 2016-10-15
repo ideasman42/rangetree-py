@@ -184,14 +184,15 @@ if USE_BTREE:
         return root
 
 
-    def rb_copy_recursive(node):
-        if node is None:
+    def rb_copy_recursive(node_src, fn):
+        if node_src is None:
             return None
-        copy = node.copy()
-        copy.color = node.color
-        copy.left = rb_copy_recursive(copy.left)
-        copy.right = rb_copy_recursive(copy.right)
-        return copy
+        node_dst = Node(node_src.min, node_src.max)
+        node_dst.color = node_src.color
+        node_dst.left = rb_copy_recursive(node_src.left, fn)
+        fn(node_dst)
+        node_dst.right = rb_copy_recursive(node_src.right, fn)
+        return node_dst
 
 
     def rb_free_recursive(node):
@@ -407,23 +408,6 @@ class LinkedList:
         if self.last is n_dst:
             self.last = n_src
 
-    def _validate(self):
-        A = 1
-        _ = self.last
-        if _ is not None:
-            while _.prev is not None:
-                _ = _.prev
-                A += 1
-
-        B = 1
-        _ = self.first
-        if _ is not None:
-            while _.next is not None:
-                _ = _.next
-                B += 1
-
-        assert(B == A)
-
 
 class RangeTree:
     """
@@ -523,7 +507,7 @@ class RangeTree:
             self._root = rb_remove(self._root, node)
             assert(rb_is_balanced(self._root))
 
-        def clear(self):
+        def rb_clear(self):
             rb_free_recursive(self._root)
             self._root = None
 
@@ -533,7 +517,6 @@ class RangeTree:
         # RB-TREE END
 
     def find_node_from_value(self, value):
-        #  self._list._validate()
         if USE_BTREE:
             node = self.tree_get_or_lower(value)
             if node is not None:
@@ -578,14 +561,32 @@ class RangeTree:
                 r.take(value)
         return r
 
-    def __init__(self, *, min, max):
+    def __init__(self, *, min, max, full=False):
         self._list = LinkedList()
         self._range = (min, max)
         if USE_BTREE:
             self._root = None
 
-        node = Node(min=min, max=max)
-        self.node_add_front(node)
+        if not full:
+            node = Node(min=min, max=max)
+            self.node_add_front(node)
+
+    def copy(self):
+        # use 'full' so tree is empty.
+        tree_dst = RangeTree(min=self._range[0], max=self._range[1], full=True)
+        if USE_BTREE:
+            tree_dst._root = rb_copy_recursive(
+                self._root,
+                tree_dst._list.push_back,
+            )
+        else:
+            push_back = tree_dst._list.push_back
+            for node_src in self._list.iter():
+                push_back(Node(min=node_src.min, max=node_src.max))
+        return tree_dst
+
+    def clear(self, full=False):
+        self.__init__(min=self._range[0], max=self._range[1], full=full)
 
     def __repr__(self):
         return ("<%s object at %s [%s]>" %
