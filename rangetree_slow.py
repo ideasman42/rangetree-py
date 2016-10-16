@@ -7,6 +7,8 @@ class RangeTree:
         "_data",
         "_min",
         "_max",
+        "_hard_min",
+        "_hard_max",
     )
 
     @classmethod
@@ -24,11 +26,14 @@ class RangeTree:
 
     def __init__(self, *, min, max):
         self._data = set()
+        self._hard_min = min
+        self._hard_max = max
         self._min = 0
-        self._max = 0  # not inclusive
+        # not inclusive
+        self._max = 0
 
     def copy(self):
-        tree_dst = RangeTree(min=self._min, max=self._max)
+        tree_dst = RangeTree(min=self._hard_min, max=self._hard_max)
         tree_dst._data = self._data.copy()
         tree_dst._min = self._min
         tree_dst._max = self._max
@@ -40,6 +45,9 @@ class RangeTree:
         self._max = 0
 
     def take(self, value):
+        if value < self._hard_min or value > self._hard_max:
+            raise Exception("Value out of range")
+
         # not essential but OK
         if not self._data and self._min == self._max:
             # Newly created
@@ -65,6 +73,8 @@ class RangeTree:
 
     def take_any(self):
         if not self._data:
+            if self._max == self._hard_max:
+                raise IndexError("All values taken!")
             self._data.add(self._max)
             self._max += 1
         value = min(self._data)

@@ -25,6 +25,14 @@ class TestBasics(unittest.TestCase):
         r_dst.clear()
         self.assertEqual([], list(r_dst.range_iter()))
 
+    def test_take_any(self):
+        r = RangeTree(min=0, max=10)
+        data = [r.take_any() for i in range(10)]
+        self.assertEqual(data, list(range(10)))
+
+        with self.assertRaises(IndexError):
+            r.take_any()
+
 
 class TestRange_Helper:
 

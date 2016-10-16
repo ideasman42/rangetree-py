@@ -249,7 +249,6 @@ class Node:
         self.max = max
         self.prev = None
         self.next = None
-
         if USE_BTREE:
             self.left = None
             self.right = None
@@ -625,7 +624,8 @@ class RangeTree:
     def take(self, value):
         node = self.find_node_from_value(value)
         if node is None:
-            # should _never_ happen, in cases where it might, use `retake` instead.
+            # should _never_ happen,
+            # in cases where it might, use `retake` instead.
             if value < self._min or value > self._max:
                 raise Exception("Value out of range")
             else:
@@ -643,6 +643,8 @@ class RangeTree:
     def take_any(self):
         node = self._list.first
         value = node.min
+        if value == self._max:
+            raise IndexError("All values taken!")
         if value == node.max:
             self.node_remove(node)
         else:
@@ -700,11 +702,8 @@ class RangeTree:
                   self._max == first.max)))
 
     def has(self, value):
-        if value < self._min:
+        if value < self._min or value > self._max:
             return False
-        elif value > self._max:
-            return False
-
         node = self.find_node_from_value(value)
         return node is None
 
