@@ -5,8 +5,6 @@ if __name__ == "__main__":
 import unittest
 from rangetree import RangeTree
 
-# while inotifywait -e close_write ./*.py || true; do tput reset ; python tests_slow.py; done
-
 
 class TestBasics(unittest.TestCase):
 
@@ -187,19 +185,29 @@ class IncrementalTest(unittest.TestCase):
                 r.take(i)
             self.assertEqual(r.is_empty(), False)
 
-            self.assertEqual(list(r.range_iter()), [(-10, -10), (10, 11)])
+            self.assertEqual(
+                list(r.range_iter()),
+                [(-10, -10), (10, 11)])
             for i in (-8, -7, 8):
                 r.take(i)
-            self.assertEqual(list(r.range_iter()), [(-10, -10), (-8, -7), (8, 8), (10, 11)])
+            self.assertEqual(
+                list(r.range_iter()),
+                [(-10, -10), (-8, -7), (8, 8), (10, 11)])
             for i in (-9, 9):
                 r.take(i)
-            self.assertEqual(list(r.range_iter()), [(-10, -7), (8, 11)])
+            self.assertEqual(
+                list(r.range_iter()),
+                [(-10, -7), (8, 11)])
             for i in (-9, 9):
                 r.release(i)
-            self.assertEqual(list(r.range_iter()), [(-10, -10), (-8, -7), (8, 8), (10, 11)])
+            self.assertEqual(
+                list(r.range_iter()),
+                [(-10, -10), (-8, -7), (8, 8), (10, 11)])
             for i in (8, 10, 11):
                 r.release(i)
-            self.assertEqual(list(r.range_iter()), [(-10, -10), (-8, -7)])
+            self.assertEqual(
+                list(r.range_iter()),
+                [(-10, -10), (-8, -7)])
             for i in (-10, -8, -7):
                 r.release(i)
             # empty for next pass
@@ -208,7 +216,8 @@ class IncrementalTest(unittest.TestCase):
 
 class TestRandom(unittest.TestCase, TestRandom_Helper):
     """
-    Use many random points in a range, ensure rangetree correctly detects their presence.
+    Use many random points in a range,
+    ensure rangetree correctly detects their presence.
     """
 
     def test_random_1(self):
