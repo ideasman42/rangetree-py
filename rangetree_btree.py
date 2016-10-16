@@ -75,19 +75,6 @@ if USE_BTREE:
         root.color = BLACK
         return root
 
-    def rb_lookup(node, key):
-        # get node from key
-        while node is not None:
-            cmp = key_cmp(key, node.key)
-            if cmp == 0:
-                return node
-
-            if cmp == -1:
-                node = node.left
-            else:
-                node = node.right
-        return None
-
     def rb_balance_recursive(node):
         # -> Node
         if is_red(node.right):
