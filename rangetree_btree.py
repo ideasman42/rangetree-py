@@ -483,9 +483,6 @@ class RangeTree:
             rb_free_recursive(self._root)
             self._root = None
 
-        def is_empty(self):
-            self._root is None
-
         # RB-TREE END
 
     def find_node_from_value(self, value):
