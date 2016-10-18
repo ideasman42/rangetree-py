@@ -706,6 +706,6 @@ class RangeTree:
         for node_prev, node_next in iter_pairs(self._list.iter()):
             yield (node_prev.max + 1, node_next.min - 1)
 
-        # This never happens!
         if self._list.last.max != self._max:
             yield (self._list.last.max + 1, self._max)
+

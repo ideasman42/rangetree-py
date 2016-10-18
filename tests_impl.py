@@ -31,6 +31,15 @@ class TestBasics(unittest.TestCase):
         with self.assertRaises(IndexError):
             r.take_any()
 
+    def test_take_all(self):
+        r = RangeTree(min=0, max=255)
+        self.assertEqual(r.is_empty(), True)
+        for i in range(255):
+            self.assertEqual(i, r.take_any())
+        self.assertEqual(r.is_empty(), False)
+        for i in range(255):
+            r.release(i)
+
 
 class TestRange_Helper:
 
