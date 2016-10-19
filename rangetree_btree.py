@@ -48,6 +48,16 @@ if USE_BTREE:
         right.color = RED
         return left
 
+    def rb_fixup_insert(node):
+        if is_red(node.right) and not is_red(node.left):
+            node = rb_rotate_left(node)
+        if is_red(node.left) and is_red(node.left.left):
+            node = rb_rotate_right(node)
+
+        if is_red(node.left) and is_red(node.right):
+            rb_flip_color(node)
+        return node
+
     def rb_insert_recursive(node, node_to_insert):
         if node is None:
             return node_to_insert
@@ -60,22 +70,14 @@ if USE_BTREE:
         else:
             node.right = rb_insert_recursive(node.right, node_to_insert)
 
-        if is_red(node.right) and not is_red(node.left):
-            node = rb_rotate_left(node)
-        if is_red(node.left) and is_red(node.left.left):
-            node = rb_rotate_right(node)
-
-        if is_red(node.left) and is_red(node.right):
-            rb_flip_color(node)
-
-        return node
+        return rb_fixup_remove(node)
 
     def rb_insert_root(root_rbtree, node_to_insert):
         root = rb_insert_recursive(root_rbtree, node_to_insert)
         root.color = BLACK
         return root
 
-    def rb_balance_recursive(node):
+    def rb_fixup_remove(node):
         # -> Node
         if is_red(node.right):
             node = rb_rotate_left(node)
@@ -115,7 +117,7 @@ if USE_BTREE:
         if (not is_red(node.left)) and (not is_red(node.left.left)):
             node = rb_move_red_to_left(node)
         node.left, node_free = rb_pop_min_recursive(node.left)
-        return rb_balance_recursive(node), node_free
+        return rb_fixup_remove(node), node_free
 
     def rb_remove_recursive(node, node_to_remove):
         if node is None:
@@ -148,9 +150,9 @@ if USE_BTREE:
                 node = node_free
             else:
                 node.right = rb_remove_recursive(node.right, node_to_remove)
-        return rb_balance_recursive(node)
+        return rb_fixup_remove(node)
 
-    def rb_remove(root, node_to_remove):
+    def rb_remove_root(root, node_to_remove):
         root = rb_remove_recursive(root, node_to_remove)
         if root is not None:
             root.color = BLACK
@@ -392,9 +394,6 @@ class RangeTree:
 
     if USE_BTREE:
         # External tree API
-        def tree_remove(self, node):
-            self.rb_remove(node)
-
         def tree_get_or_upper(self, key):
             # slow, in-efficient version
             """
@@ -476,7 +475,7 @@ class RangeTree:
             assert(rb_is_balanced(self._root))
 
         def rb_remove(self, node):
-            self._root = rb_remove(self._root, node)
+            self._root = rb_remove_root(self._root, node)
             assert(rb_is_balanced(self._root))
 
         def rb_clear(self):
@@ -587,7 +586,7 @@ class RangeTree:
     def node_remove(self, node):
         if USE_BTREE:
             # handles list also
-            self.tree_remove(node)
+            self.rb_remove(node)
         self._list.remove(node)
 
     def _take_impl(self, value, node):
