@@ -178,13 +178,67 @@ if USE_BTREE:
             node.right = None
             rb_free(node)
 
+    def rb_get_or_lower(root, key):
+        def get_or_lower_recursive(n):
+            """
+            Check if (n.key >= key)
+            to get the node directly after 'key'
+            """
+            # return best node and key_lower
+            cmp_lower = key_cmp(n.key, key)
+            if cmp_lower == 0:
+                return n  # exact match
+            elif cmp_lower == -1:
+                assert(n.key <= key)
+                # n is greater than our best so far
+                if n.right is not None:
+                    n_test = get_or_lower_recursive(n.right)
+                    if n_test is not None:
+                        return n_test
+                return n
+            else:  # 1
+                if n.left is not None:
+                    return get_or_lower_recursive(n.left)
+                return None
+            assert(0)  # unreachable
+
+        if root is not None:
+            return get_or_lower_recursive(root)
+        return None
+
+    def rb_get_or_upper(root, key):
+        def get_or_upper_recursive(n):
+            """
+            Check if (n.key >= key)
+            to get the node directly after 'key'
+            """
+            # return best node and key_upper
+            cmp_upper = key_cmp(n.key, key)
+            if cmp_upper == 0:
+                return n  # exact match
+            elif cmp_upper == 1:
+                assert(n.key >= key)
+                # n is lower than our best so far
+                if n.left is not None:
+                    n_test = get_or_upper_recursive(n.left)
+                    if n_test is not None:
+                        return n_test
+                return n
+            else:  # -1
+                if n.right is not None:
+                    return get_or_upper_recursive(n.right)
+                return None
+            assert(0)  # unreachable
+
+        if root is not None:
+            return get_or_upper_recursive(root)
+        return None
+
     def rb_is_balanced_recursive(node, black):
         # Check that every path from the root to a leaf
         # has the given number of black links.
-        if node is None and black == 0:
-            return True
-        if node is None and black != 0:
-            return False
+        if node is None:
+            return black == 0
         if not is_red(node):
             black -= 1
         return (rb_is_balanced_recursive(node.left, black) and
@@ -393,76 +447,6 @@ class RangeTree:
     ) + ((("_root",) if USE_BTREE else ()))
 
     if USE_BTREE:
-        # External tree API
-        def tree_get_or_upper(self, key):
-            # slow, in-efficient version
-            """
-            for n in self._node_iter_forward():
-                if n.key >= key:
-                    return n
-            return default
-            """
-            def get_or_upper_recursive(n):
-                """
-                Check if (n.key >= key)
-                to get the node directly after 'key'
-                """
-                # return best node and key_upper
-                cmp_upper = key_cmp(n.key, key)
-                if cmp_upper == 0:
-                    return n  # exact match
-                elif cmp_upper == 1:
-                    assert(n.key >= key)
-                    # n is lower than our best so far
-                    if n.left is not None:
-                        n_test = get_or_upper_recursive(n.left)
-                        if n_test is not None:
-                            return n_test
-                    return n
-                else:  # -1
-                    if n.right is not None:
-                        return get_or_upper_recursive(n.right)
-                    return None
-                assert(0)  # unreachable
-
-            if self._root is not None:
-                return get_or_upper_recursive(self._root)
-            return None
-
-        def tree_get_or_lower(self, key):
-            # slow, in-efficient version
-            """
-            for n in self._node_iter_backward():
-                if n.key <= key:
-                    return n
-            return default
-            """
-            def get_or_lower_recursive(n):
-                """
-                Check if (n.key >= key)
-                to get the node directly after 'key'
-                """
-                # return best node and key_lower
-                cmp_lower = key_cmp(n.key, key)
-                if cmp_lower == 0:
-                    return n  # exact match
-                elif cmp_lower == -1:
-                    assert(n.key <= key)
-                    # n is greater than our best so far
-                    if n.right is not None:
-                        n_test = get_or_lower_recursive(n.right)
-                        if n_test is not None:
-                            return n_test
-                    return n
-                else:  # 1
-                    if n.left is not None:
-                        return get_or_lower_recursive(n.left)
-                    return None
-                assert(0)  # unreachable
-
-            if self._root is not None:
-                return get_or_lower_recursive(self._root)
-            return None
 
         # --------------------------------------------------------------------
         # RB-TREE
@@ -486,7 +470,7 @@ class RangeTree:
 
     def find_node_from_value(self, value):
         if USE_BTREE:
-            node = self.tree_get_or_lower(value)
+            node = rb_get_or_lower(self._root, value)
             if node is not None:
                 if value >= node.min and value <= node.max:
                     return node
@@ -504,7 +488,7 @@ class RangeTree:
             return (self._list.last, None)
         else:
             if USE_BTREE:
-                node_next = self.tree_get_or_upper(value)
+                node_next = rb_get_or_upper(self._root, value)
                 if node_next is not None:
                     node_prev = node_next.prev
                     if node_prev.max < value < node_next.min:
@@ -707,4 +691,3 @@ class RangeTree:
 
         if self._list.last.max != self._max:
             yield (self._list.last.max + 1, self._max)
-
