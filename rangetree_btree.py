@@ -92,7 +92,7 @@ if USE_BTREE:
             are black, make h.left or one of its children red.
         """
         rb_flip_color(node)
-        if node and node.right and is_red(node.right.left):
+        if node.right and is_red(node.right.left):
             node.right = rb_rotate_right(node.right)
             node = rb_rotate_left(node)
             rb_flip_color(node)
@@ -103,7 +103,7 @@ if USE_BTREE:
             are black, make h.right or one of its children red.
         """
         rb_flip_color(node)
-        if node and node.left and is_red(node.left.left):
+        if node.left and is_red(node.left.left):
             node = rb_rotate_right(node)
             rb_flip_color(node)
         return node
