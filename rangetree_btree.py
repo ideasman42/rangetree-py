@@ -1,262 +1,9 @@
-
-# while inotifywait -e close_write ./*.py || true; do tput reset ; pypy3 tests_btree.py && pypy3 tests_slow.py; done
-
-USE_BTREE = True
-
-if USE_BTREE:
-    BLACK = True
-    RED = False
-
-    def rb_free(node):
-        del node.color
-        del node.left
-        del node.right
-        # free(node);
-
-    def is_red(node):
-        return (node is not None and node.color == RED)
-
-    def key_cmp(key1, key2):
-        return 0 if (key1 == key2) else (-1 if (key1 < key2) else 1)
-
-    def rb_flip_color(node):
-        node.color ^= True
-        node.left.color ^= True
-        node.right.color ^= True
-
-    def rb_rotate_left(left):
-        """ Make a right-leaning 3-node lean to the left.
-        """
-        if left is None:
-            return None
-        right = left.right
-        left.right = right.left
-        right.left = left
-        right.color = left.color
-        left.color = RED
-        return right
-
-    def rb_rotate_right(right):
-        """ Make a left-leaning 3-node lean to the right.
-        """
-        if right is None:
-            return None
-        left = right.left
-        right.left = left.right
-        left.right = right
-        left.color = right.color
-        right.color = RED
-        return left
-
-    def rb_fixup_insert(node):
-        if is_red(node.right) and not is_red(node.left):
-            node = rb_rotate_left(node)
-        if is_red(node.left) and is_red(node.left.left):
-            node = rb_rotate_right(node)
-
-        if is_red(node.left) and is_red(node.right):
-            rb_flip_color(node)
-        return node
-
-    def rb_insert_recursive(node, node_to_insert):
-        if node is None:
-            return node_to_insert
-
-        cmp = key_cmp(node_to_insert.key, node.key)
-        if cmp == 0:
-            pass
-        elif cmp == -1:
-            node.left = rb_insert_recursive(node.left, node_to_insert)
-        else:
-            node.right = rb_insert_recursive(node.right, node_to_insert)
-
-        return rb_fixup_remove(node)
-
-    def rb_insert_root(root_rbtree, node_to_insert):
-        root = rb_insert_recursive(root_rbtree, node_to_insert)
-        root.color = BLACK
-        return root
-
-    def rb_fixup_remove(node):
-        # -> Node
-        if is_red(node.right):
-            node = rb_rotate_left(node)
-        if is_red(node.left) and is_red(node.left.left):
-            node = rb_rotate_right(node)
-        if is_red(node.left) and is_red(node.right):
-            rb_flip_color(node)
-        return node
-
-    def rb_move_red_to_left(node):
-        """ Assuming that h is red and both h.left and h.left.left
-            are black, make h.left or one of its children red.
-        """
-        rb_flip_color(node)
-        if node.right and is_red(node.right.left):
-            node.right = rb_rotate_right(node.right)
-            node = rb_rotate_left(node)
-            rb_flip_color(node)
-        return node
-
-    def rb_move_red_to_right(node):
-        """ Assuming that h is red and both h.right and h.right.left
-            are black, make h.right or one of its children red.
-        """
-        rb_flip_color(node)
-        if node.left and is_red(node.left.left):
-            node = rb_rotate_right(node)
-            rb_flip_color(node)
-        return node
-
-    def rb_pop_min_recursive(node):
-        if node is None:
-            return None, None
-        if node.left is None:
-            #  rb_free(node)
-            return None, node
-        if (not is_red(node.left)) and (not is_red(node.left.left)):
-            node = rb_move_red_to_left(node)
-        node.left, node_free = rb_pop_min_recursive(node.left)
-        return rb_fixup_remove(node), node_free
-
-    def rb_remove_recursive(node, node_to_remove):
-        if node is None:
-            return None
-        if key_cmp(node_to_remove.key, node.key) == -1:
-            if node.left is not None:
-                if (not is_red(node.left)) and (not is_red(node.left.left)):
-                    node = rb_move_red_to_left(node)
-            node.left = rb_remove_recursive(node.left, node_to_remove)
-        else:
-            if is_red(node.left):
-                node = rb_rotate_right(node)
-            if (node is node_to_remove) and (node.right is None):
-                rb_free(node)
-                return None
-            assert(node.right is not None)
-            if (not is_red(node.right)) and (not is_red(node.right.left)):
-                node = rb_move_red_to_right(node)
-
-            if node is node_to_remove:
-                # minor improvement over original method
-                # no need to double lookup min
-                node.right, node_free = rb_pop_min_recursive(node.right)
-
-                node_free.left = node.left
-                node_free.right = node.right
-                node_free.color = node.color
-                rb_free(node)
-
-                node = node_free
-            else:
-                node.right = rb_remove_recursive(node.right, node_to_remove)
-        return rb_fixup_remove(node)
-
-    def rb_remove_root(root, node_to_remove):
-        root = rb_remove_recursive(root, node_to_remove)
-        if root is not None:
-            root.color = BLACK
-        return root
-
-    def rb_copy_recursive(node_src, fn):
-        if node_src is None:
-            return None
-        node_dst = Node(node_src.min, node_src.max)
-        node_dst.color = node_src.color
-        node_dst.left = rb_copy_recursive(node_src.left, fn)
-        fn(node_dst)
-        node_dst.right = rb_copy_recursive(node_src.right, fn)
-        return node_dst
-
-    def rb_free_recursive(node):
-        if node is not None:
-            if node.left:
-                rb_free_recursive(node.left)
-            if node.right:
-                rb_free_recursive(node.right)
-            node.left = None
-            node.right = None
-            rb_free(node)
-
-    def rb_get_or_lower(root, key):
-        def get_or_lower_recursive(n):
-            """
-            Check if (n.key >= key)
-            to get the node directly after 'key'
-            """
-            # return best node and key_lower
-            cmp_lower = key_cmp(n.key, key)
-            if cmp_lower == 0:
-                return n  # exact match
-            elif cmp_lower == -1:
-                assert(n.key <= key)
-                # n is greater than our best so far
-                if n.right is not None:
-                    n_test = get_or_lower_recursive(n.right)
-                    if n_test is not None:
-                        return n_test
-                return n
-            else:  # 1
-                if n.left is not None:
-                    return get_or_lower_recursive(n.left)
-                return None
-            assert(0)  # unreachable
-
-        if root is not None:
-            return get_or_lower_recursive(root)
-        return None
-
-    def rb_get_or_upper(root, key):
-        def get_or_upper_recursive(n):
-            """
-            Check if (n.key >= key)
-            to get the node directly after 'key'
-            """
-            # return best node and key_upper
-            cmp_upper = key_cmp(n.key, key)
-            if cmp_upper == 0:
-                return n  # exact match
-            elif cmp_upper == 1:
-                assert(n.key >= key)
-                # n is lower than our best so far
-                if n.left is not None:
-                    n_test = get_or_upper_recursive(n.left)
-                    if n_test is not None:
-                        return n_test
-                return n
-            else:  # -1
-                if n.right is not None:
-                    return get_or_upper_recursive(n.right)
-                return None
-            assert(0)  # unreachable
-
-        if root is not None:
-            return get_or_upper_recursive(root)
-        return None
-
-    def rb_is_balanced_recursive(node, black):
-        # Check that every path from the root to a leaf
-        # has the given number of black links.
-        if node is None:
-            return black == 0
-        if not is_red(node):
-            black -= 1
-        return (rb_is_balanced_recursive(node.left, black) and
-                rb_is_balanced_recursive(node.right, black))
-
-    def rb_is_balanced(root):
-        # Do all paths from root to leaf have same number of black edges?
-        black = 0  # number of black links on path from root to min
-        node = root
-        while node is not None:
-            if not is_red(node):
-                black += 1
-            node = node.left
-        return rb_is_balanced_recursive(root, black)
+# Apache License, Version 2.0
+# Copyright Campbell Barton, 2016
 
 
-# rb api end
-
+# ----------------------------------------------------------------------------
+# Helper Functions
 
 def iter_pairs(iterable):
     it = iter(iterable)
@@ -270,6 +17,263 @@ def iter_pairs(iterable):
         prev_ = next_
 
 
+# ----------------------------------------------------------------------------
+# BTree API (not object-oriented)
+
+BLACK = True
+RED = False
+
+def rb_free(node):
+    del node.color
+    del node.left
+    del node.right
+    # free(node);
+
+def is_red(node):
+    return (node is not None and node.color == RED)
+
+def key_cmp(key1, key2):
+    return 0 if (key1 == key2) else (-1 if (key1 < key2) else 1)
+
+def rb_flip_color(node):
+    node.color ^= True
+    node.left.color ^= True
+    node.right.color ^= True
+
+def rb_rotate_left(left):
+    """ Make a right-leaning 3-node lean to the left.
+    """
+    if left is None:
+        return None
+    right = left.right
+    left.right = right.left
+    right.left = left
+    right.color = left.color
+    left.color = RED
+    return right
+
+def rb_rotate_right(right):
+    """ Make a left-leaning 3-node lean to the right.
+    """
+    if right is None:
+        return None
+    left = right.left
+    right.left = left.right
+    left.right = right
+    left.color = right.color
+    right.color = RED
+    return left
+
+def rb_fixup_insert(node):
+    if is_red(node.right) and not is_red(node.left):
+        node = rb_rotate_left(node)
+    if is_red(node.left) and is_red(node.left.left):
+        node = rb_rotate_right(node)
+
+    if is_red(node.left) and is_red(node.right):
+        rb_flip_color(node)
+    return node
+
+def rb_insert_recursive(node, node_to_insert):
+    if node is None:
+        return node_to_insert
+
+    cmp = key_cmp(node_to_insert.key, node.key)
+    if cmp == 0:
+        pass
+    elif cmp == -1:
+        node.left = rb_insert_recursive(node.left, node_to_insert)
+    else:
+        node.right = rb_insert_recursive(node.right, node_to_insert)
+
+    return rb_fixup_remove(node)
+
+def rb_insert_root(root_rbtree, node_to_insert):
+    root = rb_insert_recursive(root_rbtree, node_to_insert)
+    root.color = BLACK
+    return root
+
+def rb_fixup_remove(node):
+    # -> Node
+    if is_red(node.right):
+        node = rb_rotate_left(node)
+    if is_red(node.left) and is_red(node.left.left):
+        node = rb_rotate_right(node)
+    if is_red(node.left) and is_red(node.right):
+        rb_flip_color(node)
+    return node
+
+def rb_move_red_to_left(node):
+    """ Assuming that h is red and both h.left and h.left.left
+        are black, make h.left or one of its children red.
+    """
+    rb_flip_color(node)
+    if node.right and is_red(node.right.left):
+        node.right = rb_rotate_right(node.right)
+        node = rb_rotate_left(node)
+        rb_flip_color(node)
+    return node
+
+def rb_move_red_to_right(node):
+    """ Assuming that h is red and both h.right and h.right.left
+        are black, make h.right or one of its children red.
+    """
+    rb_flip_color(node)
+    if node.left and is_red(node.left.left):
+        node = rb_rotate_right(node)
+        rb_flip_color(node)
+    return node
+
+def rb_pop_min_recursive(node):
+    if node is None:
+        return None, None
+    if node.left is None:
+        #  rb_free(node)
+        return None, node
+    if (not is_red(node.left)) and (not is_red(node.left.left)):
+        node = rb_move_red_to_left(node)
+    node.left, node_free = rb_pop_min_recursive(node.left)
+    return rb_fixup_remove(node), node_free
+
+def rb_remove_recursive(node, node_to_remove):
+    if node is None:
+        return None
+    if key_cmp(node_to_remove.key, node.key) == -1:
+        if node.left is not None:
+            if (not is_red(node.left)) and (not is_red(node.left.left)):
+                node = rb_move_red_to_left(node)
+        node.left = rb_remove_recursive(node.left, node_to_remove)
+    else:
+        if is_red(node.left):
+            node = rb_rotate_right(node)
+        if (node is node_to_remove) and (node.right is None):
+            rb_free(node)
+            return None
+        assert(node.right is not None)
+        if (not is_red(node.right)) and (not is_red(node.right.left)):
+            node = rb_move_red_to_right(node)
+
+        if node is node_to_remove:
+            # minor improvement over original method
+            # no need to double lookup min
+            node.right, node_free = rb_pop_min_recursive(node.right)
+
+            node_free.left = node.left
+            node_free.right = node.right
+            node_free.color = node.color
+            rb_free(node)
+
+            node = node_free
+        else:
+            node.right = rb_remove_recursive(node.right, node_to_remove)
+    return rb_fixup_remove(node)
+
+def rb_remove_root(root, node_to_remove):
+    root = rb_remove_recursive(root, node_to_remove)
+    if root is not None:
+        root.color = BLACK
+    return root
+
+def rb_copy_recursive(node_src, fn):
+    if node_src is None:
+        return None
+    node_dst = Node(node_src.min, node_src.max)
+    node_dst.color = node_src.color
+    node_dst.left = rb_copy_recursive(node_src.left, fn)
+    fn(node_dst)
+    node_dst.right = rb_copy_recursive(node_src.right, fn)
+    return node_dst
+
+def rb_free_recursive(node):
+    if node is not None:
+        if node.left:
+            rb_free_recursive(node.left)
+        if node.right:
+            rb_free_recursive(node.right)
+        node.left = None
+        node.right = None
+        rb_free(node)
+
+def rb_get_or_lower(root, key):
+    def get_or_lower_recursive(n):
+        """
+        Check if (n.key >= key)
+        to get the node directly after 'key'
+        """
+        # return best node and key_lower
+        cmp_lower = key_cmp(n.key, key)
+        if cmp_lower == 0:
+            return n  # exact match
+        elif cmp_lower == -1:
+            assert(n.key <= key)
+            # n is greater than our best so far
+            if n.right is not None:
+                n_test = get_or_lower_recursive(n.right)
+                if n_test is not None:
+                    return n_test
+            return n
+        else:  # 1
+            if n.left is not None:
+                return get_or_lower_recursive(n.left)
+            return None
+        assert(0)  # unreachable
+
+    if root is not None:
+        return get_or_lower_recursive(root)
+    return None
+
+def rb_get_or_upper(root, key):
+    def get_or_upper_recursive(n):
+        """
+        Check if (n.key >= key)
+        to get the node directly after 'key'
+        """
+        # return best node and key_upper
+        cmp_upper = key_cmp(n.key, key)
+        if cmp_upper == 0:
+            return n  # exact match
+        elif cmp_upper == 1:
+            assert(n.key >= key)
+            # n is lower than our best so far
+            if n.left is not None:
+                n_test = get_or_upper_recursive(n.left)
+                if n_test is not None:
+                    return n_test
+            return n
+        else:  # -1
+            if n.right is not None:
+                return get_or_upper_recursive(n.right)
+            return None
+        assert(0)  # unreachable
+
+    if root is not None:
+        return get_or_upper_recursive(root)
+    return None
+
+def rb_is_balanced_recursive(node, black):
+    # Check that every path from the root to a leaf
+    # has the given number of black links.
+    if node is None:
+        return black == 0
+    if not is_red(node):
+        black -= 1
+    return (rb_is_balanced_recursive(node.left, black) and
+            rb_is_balanced_recursive(node.right, black))
+
+def rb_is_balanced(root):
+    # Do all paths from root to leaf have same number of black edges?
+    black = 0  # number of black links on path from root to min
+    node = root
+    while node is not None:
+        if not is_red(node):
+            black += 1
+        node = node.left
+    return rb_is_balanced_recursive(root, black)
+
+
+# rb api end
+
+
 class Node:
     """
     Both a linked list and red-black tree node.
@@ -281,20 +285,22 @@ class Node:
         # range data (inclusive)
         "min",
         "max",
-    ) + (((
+
+        # btree
         "left",
         "right",
         "color",
-    ) if USE_BTREE else ()))
+    )
 
     def __init__(self, min, max):
         self.min = min
         self.max = max
         self.prev = None
         self.next = None
-        if USE_BTREE:
-            self.left = None
-            self.right = None
+
+        # btree
+        self.left = None
+        self.right = None
 
     @property
     def key(self):
@@ -444,42 +450,37 @@ class RangeTree:
         "_list",
         "_min",
         "_max",
-    ) + ((("_root",) if USE_BTREE else ()))
+        # btree
+        "_root",
+    )
 
-    if USE_BTREE:
 
-        # --------------------------------------------------------------------
-        # RB-TREE
+    # ------------------------------------------------------------------------
+    # RB-TREE
 
-        def rb_insert(self, node):
-            node.color = RED
-            node.left = None
-            node.right = None
-            self._root = rb_insert_root(self._root, node)
-            assert(rb_is_balanced(self._root))
+    def rb_insert(self, node):
+        node.color = RED
+        node.left = None
+        node.right = None
+        self._root = rb_insert_root(self._root, node)
+        assert(rb_is_balanced(self._root))
 
-        def rb_remove(self, node):
-            self._root = rb_remove_root(self._root, node)
-            assert(rb_is_balanced(self._root))
+    def rb_remove(self, node):
+        self._root = rb_remove_root(self._root, node)
+        assert(rb_is_balanced(self._root))
 
-        def rb_clear(self):
-            rb_free_recursive(self._root)
-            self._root = None
+    def rb_clear(self):
+        rb_free_recursive(self._root)
+        self._root = None
 
-        # RB-TREE END
+    # RB-TREE END
 
     def find_node_from_value(self, value):
-        if USE_BTREE:
-            node = rb_get_or_lower(self._root, value)
-            if node is not None:
-                if value >= node.min and value <= node.max:
-                    return node
-            return None
-        else:
-            for node in self._list.iter():
-                if value >= node.min and value <= node.max:
-                    return node
-            return None
+        node = rb_get_or_lower(self._root, value)
+        if node is not None:
+            if value >= node.min and value <= node.max:
+                return node
+        return None
 
     def find_node_pair_around_value(self, value):
         if value < self._list.first.min:
@@ -487,16 +488,11 @@ class RangeTree:
         elif value > self._list.last.max:
             return (self._list.last, None)
         else:
-            if USE_BTREE:
-                node_next = rb_get_or_upper(self._root, value)
-                if node_next is not None:
-                    node_prev = node_next.prev
-                    if node_prev.max < value < node_next.min:
-                        return (node_prev, node_next)
-            else:
-                for node_prev, node_next in iter_pairs(self._list.iter()):
-                    if node_prev.max < value < node_next.min:
-                        return (node_prev, node_next)
+            node_next = rb_get_or_upper(self._root, value)
+            if node_next is not None:
+                node_prev = node_next.prev
+                if node_prev.max < value < node_next.min:
+                    return (node_prev, node_next)
 
         return (None, None)
 
@@ -517,8 +513,7 @@ class RangeTree:
         self._list = LinkedList()
         self._min = min
         self._max = max
-        if USE_BTREE:
-            self._root = None
+        self._root = None
 
         if not full:
             node = Node(min=min, max=max)
@@ -527,15 +522,10 @@ class RangeTree:
     def copy(self):
         # use 'full' so tree is empty.
         tree_dst = RangeTree(min=self._min, max=self._max, full=True)
-        if USE_BTREE:
-            tree_dst._root = rb_copy_recursive(
-                self._root,
-                tree_dst._list.push_back,
-            )
-        else:
-            push_back = tree_dst._list.push_back
-            for node_src in self._list.iter():
-                push_back(Node(min=node_src.min, max=node_src.max))
+        tree_dst._root = rb_copy_recursive(
+            self._root,
+            tree_dst._list.push_back,
+        )
         return tree_dst
 
     def clear(self, full=False):
@@ -549,28 +539,22 @@ class RangeTree:
 
     def node_add_back(self, node_new):
         self._list.push_back(node_new)
-        if USE_BTREE:
-            self.rb_insert(node_new)
+        self.rb_insert(node_new)
 
     def node_add_front(self, node_new):
         self._list.push_front(node_new)
-        if USE_BTREE:
-            self.rb_insert(node_new)
+        self.rb_insert(node_new)
 
     def node_add_before(self, node_next, node_new):
         self._list.push_before(node_next, node_new)
-        if USE_BTREE:
-            self.rb_insert(node_new)
+        self.rb_insert(node_new)
 
     def node_add_after(self, node_prev, node_new):
         self._list.push_after(node_prev, node_new)
-        if USE_BTREE:
-            self.rb_insert(node_new)
+        self.rb_insert(node_new)
 
     def node_remove(self, node):
-        if USE_BTREE:
-            # handles list also
-            self.rb_remove(node)
+        self.rb_remove(node)
         self._list.remove(node)
 
     def _take_impl(self, value, node):
